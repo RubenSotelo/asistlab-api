@@ -1,25 +1,18 @@
 // src/controllers/profesor.controller.js
-const { Sesion, Grupo, Materia, Laboratorio } = require("../models");
+const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models"); // authDb para Sequelize
 const { Op } = require("sequelize");
-const moment = require("moment-timezone"); // Para manejar la fecha de "hoy"
+const moment = require("moment-timezone"); 
 
-/*
- * Este es un controlador nuevo para centralizar la lógica
- * que es específica del rol de Profesor.
- */
 class ProfesorController {
   
-  /**
-   * Obtiene los grupos asignados a un profesor.
-   * Busca en todas las sesiones (laboratoriosDb) donde aparece el profesor_id,
-   * extrae los grupo_id únicos y luego consulta los detalles de esos
-   * grupos (academicaDb).
-   */
   async getGruposPorProfesor(req, res, next) {
     try {
-      const { id: profesorId } = req.params;
-
-      // 1. Encontrar todos los grupo_id únicos que este profesor tiene en sus sesiones
+      // ✅ CORRECCIÓN: Convertir a número
+      const profesorId = parseInt(req.params.id, 10);
+      if (isNaN(profesorId)) {
+        return res.status(400).json({ error: "ID de profesor inválido" });
+      }
+      
       const sesiones = await Sesion.findAll({
         attributes: ['grupo_id'],
         where: { profesor_id: profesorId },
@@ -31,16 +24,13 @@ class ProfesorController {
       }
       
       const grupoIds = sesiones.map(s => s.grupo_id);
-
-      // 2. Buscar los detalles de esos grupos
+      
+      // ✅ CORRECCIÓN: Eliminé el 'include' inválido
       const grupos = await Grupo.findAll({
         where: { id: { [Op.in]: grupoIds } }
       });
-
-      // 3. Formatear como lo espera el frontend
+      
       const resultado = await Promise.all(grupos.map(async (g) => {
-        // Necesitamos encontrar la materia para este grupo (puede variar por sesión)
-        // Por simplicidad, tomamos la primera materia asociada a las sesiones de este grupo
         const sesionConMateria = await Sesion.findOne({
           where: { profesor_id: profesorId, grupo_id: g.id },
           attributes: ['materia_id'],
@@ -62,12 +52,11 @@ class ProfesorController {
     }
   }
 
-  /**
-   * Obtiene las sesiones (clases) de un profesor para un grupo específico.
-   */
   async getSesionesPorGrupo(req, res, next) {
     try {
-      const { id: profesorId, grupoId } = req.params;
+      // ✅ CORRECCIÓN: Convertir a número
+      const profesorId = parseInt(req.params.id, 10);
+      const grupoId = parseInt(req.params.grupoId, 10);
 
       const sesiones = await Sesion.findAll({
         where: {
@@ -77,7 +66,6 @@ class ProfesorController {
         order: [['fecha', 'DESC']]
       });
 
-      // Formatear como lo espera el frontend
       const resultado = sesiones.map(s => ({
         id: s.id,
         fecha: s.fecha,
@@ -92,9 +80,7 @@ class ProfesorController {
     }
   }
 
-  // ✅ --- INICIO DE NUEVO MÉTODO ---
-
-  // Helper para replicar la lógica de íconos del frontend
+  // Helper (sin cambios)
   getIconForMateria(materia) {
     if (!materia) return 'book-outline';
     const lower = materia.toLowerCase();
@@ -105,13 +91,13 @@ class ProfesorController {
     return 'book-outline';
   }
 
-  /**
-   * @route GET /api/v1/profesores/:id/dashboard-data
-   * Obtiene todos los datos para el dashboard del profesor.
-   */
   async getDashboardData(req, res, next) {
     try {
-      const { id: profesorId } = req.params;
+      // ✅ CORRECCIÓN: Convertir a número
+      const profesorId = parseInt(req.params.id, 10);
+      if (isNaN(profesorId)) {
+        return res.status(400).json({ error: "ID de profesor inválido" });
+      }
 
       // --- 1. Obtener Grupos Asignados (Reutilizar lógica) ---
       const gruposSesiones = await Sesion.findAll({
@@ -121,14 +107,20 @@ class ProfesorController {
       });
       const gruposAsignados = gruposSesiones.length;
 
-      // --- 2. Obtener Sesiones de Hoy ---
-      // Usar moment para obtener la fecha de hoy (en la zona horaria correcta)
-      const today = moment().tz("America/Mexico_City").format("YYYY-MM-DD");
+      // ✅ CORRECCIÓN: Usar la zona horaria de la base de datos (Neon/Postgres)
+      // Esto obtiene la fecha actual en la zona horaria de tu base de datos
+      const todayResult = await authDb.query(
+        "SELECT (CURRENT_DATE AT TIME ZONE 'America/Mexico_City') AS today"
+      );
+      const today = todayResult[0][0].today.split('T')[0];
       
+      console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para hoy: ${today}`);
+
+      // --- 2. Obtener Sesiones de Hoy ---
       const sesionesHoyRaw = await Sesion.findAll({
         where: {
           profesor_id: profesorId,
-          fecha: today // Compara solo con la fecha
+          fecha: today
         },
         order: [['hora_inicio', 'ASC']]
       });
@@ -157,14 +149,12 @@ class ProfesorController {
       let proximaSesionEnHoras = 0;
       
       const proximaSesion = sesionesHoy.find(s => {
-        // Compara la hora de inicio de la sesión con la hora actual
         const horaInicio = moment.tz(`${today}T${s.hora_inicio}`, "America/Mexico_City");
         return horaInicio.isAfter(ahora);
       });
 
       if (proximaSesion) {
         const horaInicio = moment.tz(`${today}T${proximaSesion.hora_inicio}`, "America/Mexico_City");
-        // Devuelve la diferencia en horas (ej: 1.5)
         proximaSesionEnHoras = parseFloat(horaInicio.diff(ahora, 'hours', true).toFixed(1));
       }
 
@@ -183,7 +173,6 @@ class ProfesorController {
       next(error);
     }
   }
-  // ✅ --- FIN DE NUEVO MÉTODO ---
 }
 
 module.exports = new ProfesorController();

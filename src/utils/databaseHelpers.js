@@ -1,9 +1,12 @@
-const { Laboratorio, Sesion, Alumno, RegistroAsistencia, Grupo, AlumnoGrupo } = require('../models');
+// src/utils/databaseHelpers.js
+const { 
+  Laboratorio, Sesion, Alumno, RegistroAsistencia, Grupo, AlumnoGrupo 
+} = require('../models');
 
 const databaseHelpers = {
   registrarAsistenciaAutomatica: async (qrCode, matricula) => {
     try {
-      // Buscar laboratorio por QR
+      // 1. Buscar laboratorio por QR
       const laboratorio = await Laboratorio.findOne({
         where: { qr_code: qrCode, activo: true }
       });
@@ -16,7 +19,7 @@ const databaseHelpers = {
         };
       }
 
-      // Verificar si hay sesión activa
+      // 2. Verificar si hay sesión activa
       if (!laboratorio.sesion_activa_id) {
         return {
           success: false,
@@ -25,26 +28,39 @@ const databaseHelpers = {
         };
       }
 
-      // Obtener la sesión activa
-      const sesion = await Sesion.findByPk(laboratorio.sesion_activa_id, {
-        include: [Grupo]
-      });
+      // 3. Obtener la sesión activa (SIN EL INCLUDE)
+      const sesion = await Sesion.findByPk(laboratorio.sesion_activa_id);
 
-      if (!sesion || sesion.estado !== 'activa') {
+      // ✅ --- INICIO DE LA CORRECCIÓN ---
+      // 4. Verificar si la sesión está lista (programada O activa)
+      if (!sesion || (sesion.estado !== 'activa' && sesion.estado !== 'programada')) {
         return {
           success: false,
           error: 'SESION_INACTIVA',
-          message: 'La sesión ya no está activa'
+          message: 'La sesión ya no está activa o ha sido finalizada.'
         };
       }
+      
+      // 5. Obtener el grupo (AHORA SÍ, en una consulta separada)
+      const grupo = await Grupo.findByPk(sesion.grupo_id);
+      if (!grupo) {
+        return {
+          success: false,
+          error: 'GRUPO_NO_ENCONTRADO',
+          message: 'Error interno: El grupo de la sesión no se encontró.'
+        };
+      }
+      // ✅ --- FIN DE LA CORRECCIÓN ---
 
-      // Buscar alumno por matrícula que pertenezca al grupo de la sesión
+
+      // 6. Buscar alumno por matrícula que pertenezca al grupo de la sesión
       const alumno = await Alumno.findOne({
-        where: { matricula },
+        where: { matricula: matricula },
         include: [{
           model: AlumnoGrupo,
+          as: 'alumno_grupos', // <- Asegúrate que 'as' coincida con tu models/index.js
           where: { 
-            grupo_id: sesion.grupo_id,
+            grupo_id: sesion.grupo_id, // Usamos el ID de la sesión
             activo: true
           }
         }]
@@ -54,11 +70,11 @@ const databaseHelpers = {
         return {
           success: false,
           error: 'ALUMNO_NO_ENCONTRADO',
-          message: 'Matrícula no encontrada o no pertenece al grupo de esta sesión'
+          message: 'Matrícula no encontrada o no perteneces al grupo de esta sesión'
         };
       }
 
-      // Verificar si ya está registrado
+      // 7. Verificar si ya está registrado
       const registroExistente = await RegistroAsistencia.findOne({
         where: {
           sesion_id: sesion.id,
@@ -74,15 +90,21 @@ const databaseHelpers = {
         };
       }
 
-      // Registrar asistencia
+      // 8. Registrar asistencia
       const registro = await RegistroAsistencia.create({
         sesion_id: sesion.id,
         alumno_id: alumno.id,
         laboratorio_id: laboratorio.id,
         presente: true,
         metodo_registro: 'qr',
-        hora_registro: new Date().toTimeString().split(' ')[0]
+        hora_llegada: new Date().toTimeString().split(' ')[0] // Hora actual
       });
+
+      // 9. Opcional: Cambiar estado de la sesión a "activa"
+      if (sesion.estado === 'programada') {
+        sesion.estado = 'activa';
+        await sesion.save();
+      }
 
       return {
         success: true,
@@ -90,23 +112,24 @@ const databaseHelpers = {
         data: {
           alumno: {
             matricula: alumno.matricula,
-            nombre: alumno.nombre
+            // (El nombre del alumno no está en el modelo Alumno, está en Usuario)
           },
           sesion: {
             actividad: sesion.actividad,
             laboratorio: laboratorio.nombre
           },
           registro: {
-            hora: registro.hora_registro,
+            hora: registro.hora_llegada,
             fecha: new Date().toLocaleDateString()
           }
         }
       };
     } catch (error) {
+      console.error("Error en registrarAsistenciaAutomatica:", error);
       return {
         success: false,
         error: 'ERROR_INTERNO',
-        message: 'Error interno del servidor'
+        message: 'Error interno del servidor al procesar la asistencia.'
       };
     }
   }

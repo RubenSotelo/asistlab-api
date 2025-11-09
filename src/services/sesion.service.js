@@ -6,7 +6,7 @@ const {
 const { Op } = require("sequelize");
 
 class SesionService {
-  // 📋 Listar todas las sesiones
+  //  Listar todas las sesiones
   async listar() {
     // Incluimos solo Laboratorio (misma DB)
     const sesiones = await Sesion.findAll({
@@ -14,7 +14,7 @@ class SesionService {
       nest: true
     });
 
-    // 🔗 Enriquecer datos de otras bases (manual)
+    //   Enriquecer datos de otras bases (manual)
     const sesionesConDatos = await Promise.all(
       sesiones.map(async (sesion) => {
         const laboratorio = await Laboratorio.findByPk(sesion.laboratorio_id);
