@@ -1,3 +1,4 @@
+// src/routes/index.routes.js
 const { Router } = require("express");
 
 // Importar rutas de cada módulo
@@ -12,6 +13,9 @@ const materiaRoutes = require("./materia.routes");
 const sesionRoutes = require("./sesion.routes");
 const registroAsistenciaRoutes = require("./registroAsistencia.routes");
 const tipoRoutes = require("./tipo.routes");
+const profesorRoutes = require("./profesor.routes");
+const adminRoutes = require("./admin.routes");
+const reporteRoutes = require("./reporte.routes"); // ✅ AÑADIR
 
 const router = Router();
 
@@ -27,5 +31,8 @@ router.use("/materias", materiaRoutes);
 router.use("/tipos", tipoRoutes);
 router.use("/sesiones", sesionRoutes);
 router.use("/asistencias", registroAsistenciaRoutes);
+router.use("/profesores", profesorRoutes);
+router.use("/admin", adminRoutes);
+router.use("/reportes", reporteRoutes); // ✅ AÑADIR
 
 module.exports = router;

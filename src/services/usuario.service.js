@@ -1,4 +1,5 @@
-const { Usuario, Tipo } = require("../models");
+// src/services/usuario.service.js
+const { Usuario, Tipo, Alumno } = require("../models"); // ✅ AÑADIR Alumno
 const env = require("../config/env");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
@@ -12,7 +13,7 @@ class UsuarioService {
     return await Usuario.findByPk(id, { include: [{ model: Tipo, as: "tipo" }] });
   }
 
-  // ✅ Crear usuario con contraseña encriptada
+  // ... (tu método crear() sigue igual) ...
   async crear(data) {
     // Verificar que tenga password
     if (!data.password) {
@@ -30,7 +31,7 @@ class UsuarioService {
     return await Usuario.create(data);
   }
 
-  // ✅ Editar usuario (si cambia la contraseña, la vuelve a encriptar)
+  // ... (tu método editar() sigue igual) ...
   async editar(id, data) {
     console.log("Datos: ",data);
     
@@ -53,7 +54,7 @@ class UsuarioService {
     return usuario;
   }
 
-  // ✅ Login con verificación de contraseña y control de sesión
+  // ✅ MODIFICADO: Login con verificación y ENRIQUECIMIENTO DE ALUMNO
   async login(email, password) {
     const usuario = await Usuario.findOne({
       where: { email },
@@ -64,6 +65,23 @@ class UsuarioService {
 
     const isValid = await bcrypt.compare(password, usuario.password);
     if (!isValid) return null;
+
+    // --- INICIO DE LA MODIFICACIÓN ---
+    // Convertir a JSON para poder añadir propiedades
+    const usuarioData = usuario.toJSON();
+
+    // SI ES ALUMNO (tipo_id: 3), buscar sus datos de alumno
+    if (usuario.tipo_id === 3) {
+      // (la importación de Alumno ya la hicimos arriba)
+      const alumno = await Alumno.findOne({ where: { usuario_id: usuario.id } });
+      if (alumno) {
+        usuarioData.alumno = alumno.toJSON(); // ✅ Añadir datos de alumno (id, matricula)
+      } else {
+        // Opcional: Manejar si un usuario tipo 3 no tiene registro de alumno
+        console.warn(`Usuario ${usuario.id} es alumno pero no tiene registro de alumno.`);
+      }
+    }
+    // --- FIN DE LA MODIFICACIÓN ---
 
     if (usuario.sesion_activa)
       throw new Error("La sesión ya está iniciada en otro navegador.");
@@ -77,10 +95,11 @@ class UsuarioService {
       { expiresIn: "8h" }
     );
 
-    return { usuario, token };
+    // Devolver el objeto enriquecido
+    return { usuario: usuarioData, token };
   }
 
-  // ✅ Logout
+  // ... (tu método logout() sigue igual) ...
   async logout(id) {
     const usuario = await Usuario.findByPk(id);
     if (!usuario) return null;

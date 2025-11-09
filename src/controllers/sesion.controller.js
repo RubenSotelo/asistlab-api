@@ -1,3 +1,4 @@
+// src/controllers/sesion.controller.js
 const sesionService = require("../services/sesion.service");
 const {SesionDTO, SesionUpdateDTO} = require("../dtos/sesion.dto");
 
@@ -45,12 +46,23 @@ class SesionController {
   async eliminar(req, res, next) {
     try {
       const sesion = await sesionService.eliminar(req.params.id);
-      if (!sesion) return res.status(404).json({ message: "Sesión no encontrada" });
+      if (!sesion) return res.status(404).json({ message: "Sesión eliminada correctamente" });
       res.json({ message: "Sesión eliminada correctamente" });
     } catch (error) {
       next(error);
     }
   }
+
+  // ✅ --- INICIO DE NUEVO MÉTODO ---
+  async getAsistenciaDetalle(req, res, next) {
+    try {
+      const detalles = await sesionService.getAsistenciaDetalle(req.params.id);
+      res.json(detalles);
+    } catch (error) {
+      next(error);
+    }
+  }
+  // ✅ --- FIN DE NUEVO MÉTODO ---
 }
 
 module.exports = new SesionController();
