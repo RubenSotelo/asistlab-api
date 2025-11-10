@@ -1,7 +1,7 @@
 // src/controllers/profesor.controller.js
 const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models"); 
-const { Op } = require("sequelize"); // No necesitamos 'Sequelize' aquí
-const moment = require("moment-timezone"); 
+const { Op } = require("sequelize");
+const moment = require("moment-timezone"); // Lo necesitamos para formatear la fecha
 
 class ProfesorController {
   
@@ -104,14 +104,18 @@ class ProfesorController {
 
 
       // ✅ --- INICIO DE LA CORRECCIÓN ---
-      // Revertimos a la consulta de fecha que SÍ funciona.
-      // Esta consulta obtiene la fecha de 'hoy' (2025-11-09)
+      // 1. Ejecutamos la consulta de fecha
       const todayResult = await authDb.query(
         "SELECT (CURRENT_DATE AT TIME ZONE 'America/Mexico_City') AS today"
       );
-      const today = todayResult[0][0].today.split('T')[0];
       
-      // Añadimos un log claro para depurar
+      // 2. Obtenemos el objeto Date
+      const todayDateObject = todayResult[0][0].today;
+      
+      // 3. Formateamos el objeto Date a un string 'YYYY-MM-DD'
+      const today = moment(todayDateObject).format('YYYY-MM-DD');
+      
+      // 4. El log ahora es correcto
       console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para la fecha: ${today}`);
       // ✅ --- FIN DE LA CORRECCIÓN ---
 
@@ -120,7 +124,7 @@ class ProfesorController {
       const sesionesHoyRaw = await Sesion.findAll({
         where: {
           profesor_id: profesorId,
-          fecha: today // Usamos el string de fecha "2025-11-09"
+          fecha: today // Usamos el string de fecha formateado
         },
         order: [['hora_inicio', 'ASC']]
       });
@@ -170,7 +174,6 @@ class ProfesorController {
 
       res.json(dashboardData);
     } catch (error) {
-      // ✅ Capturamos el error y lo enviamos al log
       console.error("[ERROR] en getDashboardData:", error);
       next(error);
     }
