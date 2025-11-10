@@ -25,6 +25,7 @@ Materia.belongsTo(Semestre, { foreignKey: 'semestre_id', as: 'semestre' });
 const Alumno = require('./alumno');
 const AlumnoGrupo = require('./alumnoGrupo');
 AlumnoGrupo.belongsTo(Alumno, { foreignKey: 'alumno_id', as: 'alumno' });
+Alumno.hasMany(AlumnoGrupo, { foreignKey: 'alumno_id', as: 'alumno_grupos' });
 // AlumnoGrupo.grupo_id → referencia lógica, no belongsTo Sequelize
 
 // ============================

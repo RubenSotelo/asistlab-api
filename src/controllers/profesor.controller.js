@@ -1,5 +1,5 @@
 // src/controllers/profesor.controller.js
-const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models"); // authDb para Sequelize
+const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models");
 const { Op } = require("sequelize");
 const moment = require("moment-timezone"); 
 
@@ -7,7 +7,6 @@ class ProfesorController {
   
   async getGruposPorProfesor(req, res, next) {
     try {
-      // ✅ CORRECCIÓN: Convertir a número
       const profesorId = parseInt(req.params.id, 10);
       if (isNaN(profesorId)) {
         return res.status(400).json({ error: "ID de profesor inválido" });
@@ -25,7 +24,6 @@ class ProfesorController {
       
       const grupoIds = sesiones.map(s => s.grupo_id);
       
-      // ✅ CORRECCIÓN: Eliminé el 'include' inválido
       const grupos = await Grupo.findAll({
         where: { id: { [Op.in]: grupoIds } }
       });
@@ -54,7 +52,6 @@ class ProfesorController {
 
   async getSesionesPorGrupo(req, res, next) {
     try {
-      // ✅ CORRECCIÓN: Convertir a número
       const profesorId = parseInt(req.params.id, 10);
       const grupoId = parseInt(req.params.grupoId, 10);
 
@@ -80,7 +77,6 @@ class ProfesorController {
     }
   }
 
-  // Helper (sin cambios)
   getIconForMateria(materia) {
     if (!materia) return 'book-outline';
     const lower = materia.toLowerCase();
@@ -93,13 +89,12 @@ class ProfesorController {
 
   async getDashboardData(req, res, next) {
     try {
-      // ✅ CORRECCIÓN: Convertir a número
       const profesorId = parseInt(req.params.id, 10);
       if (isNaN(profesorId)) {
         return res.status(400).json({ error: "ID de profesor inválido" });
       }
 
-      // --- 1. Obtener Grupos Asignados (Reutilizar lógica) ---
+      // --- 1. Obtener Grupos Asignados ---
       const gruposSesiones = await Sesion.findAll({
         attributes: ['grupo_id'],
         where: { profesor_id: profesorId },
@@ -107,12 +102,13 @@ class ProfesorController {
       });
       const gruposAsignados = gruposSesiones.length;
 
-      // ✅ CORRECCIÓN: Usar la zona horaria de la base de datos (Neon/Postgres)
-      // Esto obtiene la fecha actual en la zona horaria de tu base de datos
-      const todayResult = await authDb.query(
-        "SELECT (CURRENT_DATE AT TIME ZONE 'America/Mexico_City') AS today"
-      );
-      const today = todayResult[0][0].today.split('T')[0];
+      // ✅ --- INICIO DE LA CORRECCIÓN ---
+      // Usamos moment() simple. Esto usará la fecha del servidor.
+      // Ya que tus datos de prueba son para 2025,
+      // asegúrate de que el reloj de tu servidor (o tu PC local)
+      // esté en la fecha '2025-11-09' para que esto funcione.
+      const today = moment().format("YYYY-MM-DD");
+      // ✅ --- FIN DE LA CORRECCIÓN ---
       
       console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para hoy: ${today}`);
 

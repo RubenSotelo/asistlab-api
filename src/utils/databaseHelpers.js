@@ -28,10 +28,9 @@ const databaseHelpers = {
         };
       }
 
-      // 3. Obtener la sesión activa (SIN EL INCLUDE)
+      // 3. Obtener la sesión activa
       const sesion = await Sesion.findByPk(laboratorio.sesion_activa_id);
 
-      // ✅ --- INICIO DE LA CORRECCIÓN ---
       // 4. Verificar si la sesión está lista (programada O activa)
       if (!sesion || (sesion.estado !== 'activa' && sesion.estado !== 'programada')) {
         return {
@@ -41,7 +40,7 @@ const databaseHelpers = {
         };
       }
       
-      // 5. Obtener el grupo (AHORA SÍ, en una consulta separada)
+      // 5. Obtener el grupo (consulta separada)
       const grupo = await Grupo.findByPk(sesion.grupo_id);
       if (!grupo) {
         return {
@@ -50,22 +49,24 @@ const databaseHelpers = {
           message: 'Error interno: El grupo de la sesión no se encontró.'
         };
       }
-      // ✅ --- FIN DE LA CORRECCIÓN ---
 
-
-      // 6. Buscar alumno por matrícula que pertenezca al grupo de la sesión
+      // ✅ --- INICIO DE LA CORRECCIÓN ---
+      // 6. Buscar alumno por matrícula Y verificar que esté en el grupo
       const alumno = await Alumno.findOne({
         where: { matricula: matricula },
+        // Usamos la relación 'alumno_grupos' que definimos en index.js
         include: [{
           model: AlumnoGrupo,
-          as: 'alumno_grupos', // <- Asegúrate que 'as' coincida con tu models/index.js
+          as: 'alumno_grupos', 
           where: { 
-            grupo_id: sesion.grupo_id, // Usamos el ID de la sesión
+            grupo_id: sesion.grupo_id, // El alumno debe estar en el grupo de la sesión
             activo: true
-          }
+          },
+          required: true // <-- IMPORTANTE: Hace que sea un INNER JOIN
         }]
       });
 
+      // Si el Alumno no se encuentra (o no está en ese grupo), fallará aquí
       if (!alumno) {
         return {
           success: false,
@@ -73,6 +74,7 @@ const databaseHelpers = {
           message: 'Matrícula no encontrada o no perteneces al grupo de esta sesión'
         };
       }
+      // ✅ --- FIN DE LA CORRECCIÓN ---
 
       // 7. Verificar si ya está registrado
       const registroExistente = await RegistroAsistencia.findOne({
@@ -111,8 +113,7 @@ const databaseHelpers = {
         message: 'Asistencia registrada correctamente',
         data: {
           alumno: {
-            matricula: alumno.matricula,
-            // (El nombre del alumno no está en el modelo Alumno, está en Usuario)
+            matricula: alumno.matricula
           },
           sesion: {
             actividad: sesion.actividad,
