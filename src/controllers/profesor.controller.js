@@ -1,7 +1,7 @@
 // src/controllers/profesor.controller.js
 const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models"); 
-const { Op } = require("sequelize");
-const moment = require("moment-timezone"); // Lo necesitamos para formatear la fecha
+const { Op, Sequelize } = require("sequelize");
+const moment = require("moment-timezone"); 
 
 class ProfesorController {
   
@@ -77,15 +77,7 @@ class ProfesorController {
     }
   }
 
-  getIconForMateria(materia) {
-    if (!materia) return 'book-outline';
-    const lower = materia.toLowerCase();
-    if (lower.includes('datos')) return 'git-network-outline';
-    if (lower.includes('base de datos')) return 'server-outline';
-    if (lower.includes('redes')) return 'hardware-chip-outline';
-    if (lower.includes('cálculo')) return 'calculator-outline';
-    return 'book-outline';
-  }
+  // ✅ --- FUNCIÓN DE ICONO ELIMINADA DE AQUÍ ---
 
   async getDashboardData(req, res, next) {
     try {
@@ -103,28 +95,20 @@ class ProfesorController {
       const gruposAsignados = gruposSesiones.length;
 
 
-      // ✅ --- INICIO DE LA CORRECCIÓN ---
-      // 1. Ejecutamos la consulta de fecha
+      // --- 2. Obtener Fecha de Hoy (Corregido) ---
       const todayResult = await authDb.query(
         "SELECT (CURRENT_DATE AT TIME ZONE 'America/Mexico_City') AS today"
       );
-      
-      // 2. Obtenemos el objeto Date
       const todayDateObject = todayResult[0][0].today;
-      
-      // 3. Formateamos el objeto Date a un string 'YYYY-MM-DD'
       const today = moment(todayDateObject).format('YYYY-MM-DD');
       
-      // 4. El log ahora es correcto
       console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para la fecha: ${today}`);
-      // ✅ --- FIN DE LA CORRECCIÓN ---
-
 
       // --- 3. Obtener Sesiones de Hoy ---
       const sesionesHoyRaw = await Sesion.findAll({
         where: {
           profesor_id: profesorId,
-          fecha: today // Usamos el string de fecha formateado
+          fecha: today 
         },
         order: [['hora_inicio', 'ASC']]
       });
@@ -135,16 +119,20 @@ class ProfesorController {
           const materia = await Materia.findByPk(s.materia_id);
           const laboratorio = await Laboratorio.findByPk(s.laboratorio_id);
           const grupo = await Grupo.findByPk(s.grupo_id);
-          const materiaNombre = materia ? materia.nombre : 'N/A';
+          
+          // ✅ --- INICIO DE LA CORRECCIÓN ---
+          // Simplemente enviamos los datos. El frontend
+          // (profesor-dashboard.component.ts) ya tiene la lógica de iconos.
           return {
             id: s.id,
-            materia: materiaNombre,
+            materia: materia ? materia.nombre : 'N/A',
             laboratorio: laboratorio ? laboratorio.nombre : 'N/A',
             horario: `${s.hora_inicio} - ${s.hora_fin || '??'}`,
             hora_inicio: s.hora_inicio,
-            grupo: grupo ? `Grupo ${grupo.nombre}` : 'N/A',
-            icono: this.getIconForMateria(materiaNombre)
+            grupo: grupo ? `Grupo ${grupo.nombre}` : 'N/A'
+            // La línea 'icono: ...' ha sido eliminada.
           };
+          // ✅ --- FIN DE LA CORRECCIÓN ---
         })
       );
 
@@ -166,7 +154,7 @@ class ProfesorController {
       const dashboardData = {
         stats: {
           gruposAsignados: gruposAsignados,
-          sesionesHoy: sesionesHoy.length, // Esto ahora debería ser 1
+          sesionesHoy: sesionesHoy.length,
           proximaSesionEnHoras: proximaSesionEnHoras
         },
         sesionesHoy: sesionesHoy
