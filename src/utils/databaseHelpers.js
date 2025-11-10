@@ -2,6 +2,7 @@
 const { 
   Laboratorio, Sesion, Alumno, RegistroAsistencia, Grupo, AlumnoGrupo 
 } = require('../models');
+const { Op } = require("sequelize"); // ✅ Importar Op
 
 const databaseHelpers = {
   registrarAsistenciaAutomatica: async (qrCode, matricula) => {
@@ -31,14 +32,44 @@ const databaseHelpers = {
       // 3. Obtener la sesión activa
       const sesion = await Sesion.findByPk(laboratorio.sesion_activa_id);
 
-      // 4. Verificar si la sesión está lista (programada O activa)
-      if (!sesion || (sesion.estado !== 'activa' && sesion.estado !== 'programada')) {
+      // ✅ --- INICIO DE LA CORRECCIÓN ---
+      // 4. Verificar si la sesión está lista Y en la hora correcta
+      
+      const ahora = moment().tz("America/Mexico_City");
+      const fechaHoy = ahora.format("YYYY-MM-DD");
+      const horaActual = ahora.format("HH:mm:ss");
+
+      // Comprobar que la sesión sea de hoy
+      if (!sesion || sesion.fecha !== fechaHoy) {
+         return {
+          success: false,
+          error: 'SESION_NO_ES_DE_HOY',
+          message: 'La sesión activa en este laboratorio no está programada para hoy.'
+        };
+      }
+
+      // Comprobar que estemos en el rango de la hora
+      // (Permitimos escanear desde 15 min antes hasta 15 min después de que termine)
+      const horaInicio = moment.tz(`${sesion.fecha}T${sesion.hora_inicio}`, "America/Mexico_City").subtract(15, 'minutes');
+      const horaFin = moment.tz(`${sesion.fecha}T${sesion.hora_fin}`, "America/Mexico_City").add(15, 'minutes');
+
+      if (!ahora.isBetween(horaInicio, horaFin)) {
+        return {
+          success: false,
+          error: 'SESION_FUERA_DE_HORA',
+          message: `La sesión es de ${sesion.hora_inicio} a ${sesion.hora_fin}. Aún no puedes registrarte.`
+        };
+      }
+      
+      // Comprobar que el estado sea válido
+      if (sesion.estado !== 'activa' && sesion.estado !== 'programada') {
         return {
           success: false,
           error: 'SESION_INACTIVA',
           message: 'La sesión ya no está activa o ha sido finalizada.'
         };
       }
+      // ✅ --- FIN DE LA CORRECCIÓN ---
       
       // 5. Obtener el grupo (consulta separada)
       const grupo = await Grupo.findByPk(sesion.grupo_id);
@@ -50,23 +81,20 @@ const databaseHelpers = {
         };
       }
 
-      // ✅ --- INICIO DE LA CORRECCIÓN ---
       // 6. Buscar alumno por matrícula Y verificar que esté en el grupo
       const alumno = await Alumno.findOne({
         where: { matricula: matricula },
-        // Usamos la relación 'alumno_grupos' que definimos en index.js
         include: [{
           model: AlumnoGrupo,
-          as: 'alumno_grupos', 
+          as: 'alumno_grupos', // Usamos la relación 'alumno_grupos' de index.js
           where: { 
-            grupo_id: sesion.grupo_id, // El alumno debe estar en el grupo de la sesión
+            grupo_id: sesion.grupo_id, 
             activo: true
           },
-          required: true // <-- IMPORTANTE: Hace que sea un INNER JOIN
+          required: true // <-- INNER JOIN
         }]
       });
 
-      // Si el Alumno no se encuentra (o no está en ese grupo), fallará aquí
       if (!alumno) {
         return {
           success: false,
@@ -74,7 +102,6 @@ const databaseHelpers = {
           message: 'Matrícula no encontrada o no perteneces al grupo de esta sesión'
         };
       }
-      // ✅ --- FIN DE LA CORRECCIÓN ---
 
       // 7. Verificar si ya está registrado
       const registroExistente = await RegistroAsistencia.findOne({
@@ -99,7 +126,7 @@ const databaseHelpers = {
         laboratorio_id: laboratorio.id,
         presente: true,
         metodo_registro: 'qr',
-        hora_llegada: new Date().toTimeString().split(' ')[0] // Hora actual
+        hora_llegada: horaActual // Usamos la hora que ya calculamos
       });
 
       // 9. Opcional: Cambiar estado de la sesión a "activa"
@@ -121,7 +148,7 @@ const databaseHelpers = {
           },
           registro: {
             hora: registro.hora_llegada,
-            fecha: new Date().toLocaleDateString()
+            fecha: sesion.fecha
           }
         }
       };

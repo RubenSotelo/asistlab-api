@@ -1,6 +1,6 @@
 // src/controllers/profesor.controller.js
 const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models"); 
-const { Op, Sequelize } = require("sequelize"); // ✅ 1. IMPORTAR Sequelize
+const { Op } = require("sequelize"); // No necesitamos 'Sequelize' aquí
 const moment = require("moment-timezone"); 
 
 class ProfesorController {
@@ -104,20 +104,23 @@ class ProfesorController {
 
 
       // ✅ --- INICIO DE LA CORRECCIÓN ---
-      // 2. Obtener Sesiones de Hoy (Usando la lógica de BD)
-      // Le pedimos a Postgres que compare la columna 'fecha'
-      // con la fecha actual en la zona horaria de México.
-      const today = Sequelize.literal("CURRENT_DATE AT TIME ZONE 'America/Mexico_City'");
+      // Revertimos a la consulta de fecha que SÍ funciona.
+      // Esta consulta obtiene la fecha de 'hoy' (2025-11-09)
+      const todayResult = await authDb.query(
+        "SELECT (CURRENT_DATE AT TIME ZONE 'America/Mexico_City') AS today"
+      );
+      const today = todayResult[0][0].today.split('T')[0];
       
-      console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para 'hoy'`);
-      // --- FIN DE LA CORRECCIÓN ---
+      // Añadimos un log claro para depurar
+      console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para la fecha: ${today}`);
+      // ✅ --- FIN DE LA CORRECCIÓN ---
 
 
       // --- 3. Obtener Sesiones de Hoy ---
       const sesionesHoyRaw = await Sesion.findAll({
         where: {
           profesor_id: profesorId,
-          fecha: today // Usamos la consulta literal de Sequelize
+          fecha: today // Usamos el string de fecha "2025-11-09"
         },
         order: [['hora_inicio', 'ASC']]
       });
@@ -146,15 +149,12 @@ class ProfesorController {
       let proximaSesionEnHoras = 0;
       
       const proximaSesion = sesionesHoy.find(s => {
-        // Necesitamos la fecha de 'today' como string para moment
-        const todayStr = moment().tz("America/Mexico_City").format("YYYY-MM-DD");
-        const horaInicio = moment.tz(`${todayStr}T${s.hora_inicio}`, "America/Mexico_City");
+        const horaInicio = moment.tz(`${today}T${s.hora_inicio}`, "America/Mexico_City");
         return horaInicio.isAfter(ahora);
       });
 
       if (proximaSesion) {
-        const todayStr = moment().tz("America/Mexico_City").format("YYYY-MM-DD");
-        const horaInicio = moment.tz(`${todayStr}T${proximaSesion.hora_inicio}`, "America/Mexico_City");
+        const horaInicio = moment.tz(`${today}T${proximaSesion.hora_inicio}`, "America/Mexico_City");
         proximaSesionEnHoras = parseFloat(horaInicio.diff(ahora, 'hours', true).toFixed(1));
       }
 
@@ -170,6 +170,8 @@ class ProfesorController {
 
       res.json(dashboardData);
     } catch (error) {
+      // ✅ Capturamos el error y lo enviamos al log
+      console.error("[ERROR] en getDashboardData:", error);
       next(error);
     }
   }
