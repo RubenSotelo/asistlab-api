@@ -1,8 +1,8 @@
-// src/utils/databaseHelpers.js
 const { 
   Laboratorio, Sesion, Alumno, RegistroAsistencia, Grupo, AlumnoGrupo 
 } = require('../models');
-const { Op } = require("sequelize"); // ✅ Importar Op
+const { Op } = require("sequelize");
+const moment = require("moment-timezone"); // ✅ --- LA LÍNEA QUE FALTABA ---
 
 const databaseHelpers = {
   registrarAsistenciaAutomatica: async (qrCode, matricula) => {
@@ -32,12 +32,9 @@ const databaseHelpers = {
       // 3. Obtener la sesión activa
       const sesion = await Sesion.findByPk(laboratorio.sesion_activa_id);
 
-      // ✅ --- INICIO DE LA CORRECCIÓN ---
       // 4. Verificar si la sesión está lista Y en la hora correcta
-      
       const ahora = moment().tz("America/Mexico_City");
       const fechaHoy = ahora.format("YYYY-MM-DD");
-      const horaActual = ahora.format("HH:mm:ss");
 
       // Comprobar que la sesión sea de hoy
       if (!sesion || sesion.fecha !== fechaHoy) {
@@ -49,9 +46,9 @@ const databaseHelpers = {
       }
 
       // Comprobar que estemos en el rango de la hora
-      // (Permitimos escanear desde 15 min antes hasta 15 min después de que termine)
+      // (Permitimos escanear desde 15 min antes hasta que termine)
       const horaInicio = moment.tz(`${sesion.fecha}T${sesion.hora_inicio}`, "America/Mexico_City").subtract(15, 'minutes');
-      const horaFin = moment.tz(`${sesion.fecha}T${sesion.hora_fin}`, "America/Mexico_City").add(15, 'minutes');
+      const horaFin = moment.tz(`${sesion.fecha}T${sesion.hora_fin}`, "America/Mexico_City");
 
       if (!ahora.isBetween(horaInicio, horaFin)) {
         return {
@@ -69,7 +66,6 @@ const databaseHelpers = {
           message: 'La sesión ya no está activa o ha sido finalizada.'
         };
       }
-      // ✅ --- FIN DE LA CORRECCIÓN ---
       
       // 5. Obtener el grupo (consulta separada)
       const grupo = await Grupo.findByPk(sesion.grupo_id);
@@ -126,7 +122,7 @@ const databaseHelpers = {
         laboratorio_id: laboratorio.id,
         presente: true,
         metodo_registro: 'qr',
-        hora_llegada: horaActual // Usamos la hora que ya calculamos
+        hora_llegada: ahora.format("HH:mm:ss") // Usamos la hora que ya calculamos
       });
 
       // 9. Opcional: Cambiar estado de la sesión a "activa"
