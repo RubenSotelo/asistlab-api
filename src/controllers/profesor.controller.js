@@ -1,6 +1,6 @@
 // src/controllers/profesor.controller.js
-const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models");
-const { Op } = require("sequelize");
+const { Sesion, Grupo, Materia, Laboratorio, authDb } = require("../models"); 
+const { Op, Sequelize } = require("sequelize"); // ✅ 1. IMPORTAR Sequelize
 const moment = require("moment-timezone"); 
 
 class ProfesorController {
@@ -102,26 +102,27 @@ class ProfesorController {
       });
       const gruposAsignados = gruposSesiones.length;
 
-      // ✅ --- INICIO DE LA CORRECCIÓN ---
-      // Usamos moment() simple. Esto usará la fecha del servidor.
-      // Ya que tus datos de prueba son para 2025,
-      // asegúrate de que el reloj de tu servidor (o tu PC local)
-      // esté en la fecha '2025-11-09' para que esto funcione.
-      const today = moment().format("YYYY-MM-DD");
-      // ✅ --- FIN DE LA CORRECCIÓN ---
-      
-      console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para hoy: ${today}`);
 
-      // --- 2. Obtener Sesiones de Hoy ---
+      // ✅ --- INICIO DE LA CORRECCIÓN ---
+      // 2. Obtener Sesiones de Hoy (Usando la lógica de BD)
+      // Le pedimos a Postgres que compare la columna 'fecha'
+      // con la fecha actual en la zona horaria de México.
+      const today = Sequelize.literal("CURRENT_DATE AT TIME ZONE 'America/Mexico_City'");
+      
+      console.log(`[Dashboard Prof: ${profesorId}] Buscando sesiones para 'hoy'`);
+      // --- FIN DE LA CORRECCIÓN ---
+
+
+      // --- 3. Obtener Sesiones de Hoy ---
       const sesionesHoyRaw = await Sesion.findAll({
         where: {
           profesor_id: profesorId,
-          fecha: today
+          fecha: today // Usamos la consulta literal de Sequelize
         },
         order: [['hora_inicio', 'ASC']]
       });
 
-      // --- 3. Enriquecer Sesiones de Hoy ---
+      // --- 4. Enriquecer Sesiones de Hoy ---
       const sesionesHoy = await Promise.all(
         sesionesHoyRaw.map(async (s) => {
           const materia = await Materia.findByPk(s.materia_id);
@@ -140,25 +141,28 @@ class ProfesorController {
         })
       );
 
-      // --- 4. Calcular Próxima Sesión ---
+      // --- 5. Calcular Próxima Sesión ---
       const ahora = moment().tz("America/Mexico_City");
       let proximaSesionEnHoras = 0;
       
       const proximaSesion = sesionesHoy.find(s => {
-        const horaInicio = moment.tz(`${today}T${s.hora_inicio}`, "America/Mexico_City");
+        // Necesitamos la fecha de 'today' como string para moment
+        const todayStr = moment().tz("America/Mexico_City").format("YYYY-MM-DD");
+        const horaInicio = moment.tz(`${todayStr}T${s.hora_inicio}`, "America/Mexico_City");
         return horaInicio.isAfter(ahora);
       });
 
       if (proximaSesion) {
-        const horaInicio = moment.tz(`${today}T${proximaSesion.hora_inicio}`, "America/Mexico_City");
+        const todayStr = moment().tz("America/Mexico_City").format("YYYY-MM-DD");
+        const horaInicio = moment.tz(`${todayStr}T${proximaSesion.hora_inicio}`, "America/Mexico_City");
         proximaSesionEnHoras = parseFloat(horaInicio.diff(ahora, 'hours', true).toFixed(1));
       }
 
-      // --- 5. Construir Respuesta ---
+      // --- 6. Construir Respuesta ---
       const dashboardData = {
         stats: {
           gruposAsignados: gruposAsignados,
-          sesionesHoy: sesionesHoy.length,
+          sesionesHoy: sesionesHoy.length, // Esto ahora debería ser 1
           proximaSesionEnHoras: proximaSesionEnHoras
         },
         sesionesHoy: sesionesHoy
