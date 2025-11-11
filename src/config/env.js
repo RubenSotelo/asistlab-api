@@ -1,5 +1,14 @@
 const dotenv = require("dotenv");
-dotenv.config();
+
+// ✅ --- INICIO DE LA CORRECCIÓN ---
+// Solo carga el archivo .env si NO estamos en producción.
+// Render setea NODE_ENV="production" automáticamente
+// (como se ve en tu variable de entorno).
+if (process.env.NODE_ENV !== 'production') {
+  dotenv.config();
+}
+// ✅ --- FIN DE LA CORRECCIÓN ---
+
 
 /**
  * Función helper para construir la URL de conexión de la BD 
