@@ -2,8 +2,9 @@ const dotenv = require("dotenv");
 
 // ✅ --- INICIO DE LA CORRECCIÓN ---
 // Solo carga el archivo .env si NO estamos en producción.
-// Render setea NODE_ENV="production" automáticamente.
+// Render setea NODE_ENV="production" (como se ve en tus variables).
 if (process.env.NODE_ENV !== 'production') {
+  console.log("Cargando variables desde archivo .env (Desarrollo)");
   dotenv.config();
 }
 // ✅ --- FIN DE LA CORRECCIÓN ---
